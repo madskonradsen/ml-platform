@@ -1,0 +1,110 @@
+{{- if .Values.prefect.worker.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prefect-worker
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: worker
+spec:
+  replicas: {{ .Values.prefect.worker.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Chart.Name }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ .Chart.Name }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: worker
+    spec:
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      {{- end }}
+      initContainers:
+      - name: wait-for-server
+        image: "{{ .Values.prefect.worker.image.repository }}:{{ .Values.prefect.worker.image.tag }}"
+        command:
+        - python
+        - -c
+        - |
+          import time
+          import urllib.request
+          import urllib.error
+          
+          url = "http://prefect-server:{{ .Values.prefect.server.service.port }}/api/health"
+          while True:
+              try:
+                  response = urllib.request.urlopen(url, timeout=5)
+                  if response.status == 200:
+                      print("Prefect server is ready!")
+                      break
+              except Exception as e:
+                  print(f"Waiting for Prefect server to be ready... ({e})")
+              time.sleep(5)
+      {{- if .Values.prefect.worker.flows.mountFromImage.enabled }}
+      - name: copy-flows
+        image: "{{ .Values.prefect.worker.flows.mountFromImage.image.repository }}:{{ .Values.prefect.worker.flows.mountFromImage.image.tag }}"
+        imagePullPolicy: {{ .Values.prefect.worker.flows.mountFromImage.image.pullPolicy }}
+        command:
+        - sh
+        - -c
+        - |
+          echo "Copying flows from {{ .Values.prefect.worker.flows.mountFromImage.sourcePath }} to /shared-flows..."
+          cp -rv {{ .Values.prefect.worker.flows.mountFromImage.sourcePath }}/* /shared-flows/ || echo "Warning: No flows found"
+          ls -la /shared-flows/
+          echo "✓ Flows copied successfully"
+        volumeMounts:
+        - name: flows
+          mountPath: /shared-flows
+      {{- end }}
+      containers:
+      - name: prefect-worker
+        image: "{{ .Values.prefect.worker.image.repository }}:{{ .Values.prefect.worker.image.tag }}"
+        imagePullPolicy: {{ .Values.prefect.worker.image.pullPolicy }}
+        volumeMounts:
+        {{- if .Values.prefect.worker.flows.mountFromImage.enabled }}
+        - name: flows
+          mountPath: {{ .Values.prefect.worker.flows.mountFromImage.targetPath }}
+          readOnly: true
+        {{- end }}
+        - name: prefect-data
+          mountPath: /.prefect
+        - name: tmp
+          mountPath: /tmp
+        command: 
+        - /bin/sh
+        - -c
+        - |
+          prefect work-pool create {{ .Values.prefect.worker.workPool.name }} --type {{ .Values.prefect.worker.workPool.type }} || true
+          prefect worker start --pool {{ .Values.prefect.worker.workPool.name }}
+        env:
+        {{- range .Values.prefect.worker.env }}
+        - name: {{ .name }}
+          {{- if .value }}
+          value: {{ .value | quote }}
+          {{- else if .valueFrom }}
+          valueFrom:
+            {{- toYaml .valueFrom | nindent 12 }}
+          {{- end }}
+        {{- end }}
+        {{- if .Values.prefect.worker.flows.mountFromImage.enabled }}
+        - name: PYTHONPATH
+          value: "{{ .Values.prefect.worker.flows.mountFromImage.targetPath }}:$PYTHONPATH"
+        {{- end }}
+        resources:
+          {{- toYaml .Values.prefect.worker.resources | nindent 10 }}
+      volumes:
+      {{- if .Values.prefect.worker.flows.mountFromImage.enabled }}
+      - name: flows
+        emptyDir: {}
+      {{- end }}
+      - name: prefect-data
+        emptyDir: {}
+      - name: tmp
+        emptyDir: {}
+{{- end }}

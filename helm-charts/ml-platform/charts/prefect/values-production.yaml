@@ -1,0 +1,54 @@
+# Example: Custom values for production deployment
+
+prefect:
+  server:
+    replicas: 2  # High availability
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "1000m"
+      limits:
+        memory: "4Gi"
+        cpu: "4000m"
+  
+  worker:
+    enabled: true
+    replicas: 3
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "2000m"
+
+postgresql:
+  enabled: true
+  auth:
+    password: "my-super-secure-password-123"  # CHANGE THIS!
+  persistence:
+    enabled: true
+    size: 20Gi
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "2000m"
+
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+  hosts:
+    - host: prefect.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: prefect-tls
+      hosts:
+        - prefect.example.com

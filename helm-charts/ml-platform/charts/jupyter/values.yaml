@@ -1,0 +1,36 @@
+enabled: true
+
+image:
+  repository: jupyter/scipy-notebook
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+bundledFlowsImage:
+  enabled: false  # Disable for local dev - use copy-flows-to-jupyter.ps1 instead
+  repository: bundled-flows
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 8888
+
+token: "prefect-jupyter-token"
+
+resources:
+  requests:
+    memory: "512Mi"
+    cpu: "500m"
+  limits:
+    memory: "2Gi"
+    cpu: "2000m"
+
+persistence:
+  enabled: true
+  storageClass: ""
+  size: 5Gi
+  accessMode: ReadWriteOnce
+
+serviceAccount:
+  create: true
+  name: "jupyter"

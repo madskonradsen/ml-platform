@@ -1,0 +1,58 @@
+# Shared PostgreSQL Configuration
+# This database supports multiple applications with separate databases
+
+postgresql:
+  enabled: true
+  
+  image:
+    repository: postgres
+    tag: "16-alpine"
+    pullPolicy: IfNotPresent
+  
+  replicas: 1
+  
+  # Global authentication
+  auth:
+    username: "postgres"
+    password: "changeme123"  # IMPORTANT: Change in production!
+    
+  # Multiple databases for different applications
+  databases:
+    - name: prefect
+      owner: prefect
+      password: prefect123
+    - name: mlflow
+      owner: mlflow
+      password: mlflow123
+  
+  # Service configuration
+  service:
+    type: ClusterIP
+    port: 5432
+  
+  # Persistent storage
+  persistence:
+    enabled: true
+    storageClass: ""
+    size: 10Gi
+    accessMode: ReadWriteOnce
+  
+  # Resource limits
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "2Gi"
+      cpu: "2000m"
+
+# Service Account
+serviceAccount:
+  create: true
+  name: "postgresql-sa"
+
+# Security Context
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 999
+  fsGroup: 999

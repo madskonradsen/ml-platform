@@ -1,0 +1,94 @@
+{{- if .Values.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jupyter
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: jupyter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Chart.Name }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: jupyter
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ .Chart.Name }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: jupyter
+    spec:
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      {{- end }}
+      {{- if .Values.bundledFlowsImage.enabled }}
+      initContainers:
+      - name: setup-flows
+        image: "{{ .Values.bundledFlowsImage.repository }}:{{ .Values.bundledFlowsImage.tag }}"
+        imagePullPolicy: {{ .Values.bundledFlowsImage.pullPolicy }}
+        command:
+        - sh
+        - -c
+        - cp -r /bundled-flows /workspace/bundled-flows
+        volumeMounts:
+        - name: workspace
+          mountPath: /workspace
+      {{- end }}
+      containers:
+      - name: jupyter
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command:
+        - /bin/bash
+        - -c
+        - |
+          # Install Prefect and ML dependencies
+          pip install --no-cache-dir prefect scikit-learn numpy pandas matplotlib seaborn xgboost
+          
+          # Start JupyterLab
+          jupyter lab --ip=0.0.0.0 --port=8888 --no-browser \
+            --NotebookApp.token='{{ .Values.token }}' \
+            --NotebookApp.password='' \
+            --allow-root
+        ports:
+        - name: http
+          containerPort: 8888
+          protocol: TCP
+        env:
+        - name: PREFECT_API_URL
+          value: "http://prefect-server:4200/api"
+        - name: JUPYTER_ENABLE_LAB
+          value: "yes"
+        volumeMounts:
+        - name: workspace
+          mountPath: /home/jovyan/work
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+        livenessProbe:
+          httpGet:
+            path: /lab
+            port: http
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /lab
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+      volumes:
+      - name: workspace
+        {{- if .Values.persistence.enabled }}
+        persistentVolumeClaim:
+          claimName: jupyter-workspace-pvc
+        {{- else }}
+        emptyDir: {}
+        {{- end }}
+{{- end }}
+

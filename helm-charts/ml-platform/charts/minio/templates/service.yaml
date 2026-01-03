@@ -1,0 +1,26 @@
+{{- if .Values.minio.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: object-storage
+spec:
+  type: {{ .Values.minio.service.type }}
+  ports:
+  - name: api
+    port: {{ .Values.minio.service.port }}
+    targetPort: api
+    protocol: TCP
+  - name: console
+    port: {{ .Values.minio.service.consolePort }}
+    targetPort: console
+    protocol: TCP
+  selector:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: object-storage
+{{- end }}

@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prefect-server
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: server
+spec:
+  replicas: {{ .Values.prefect.server.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Chart.Name }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: server
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ .Chart.Name }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: server
+    spec:
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      {{- end }}
+      initContainers:
+      - name: wait-for-db
+        image: "busybox:1.36"
+        command:
+        - /bin/sh
+        - -c
+        - |
+          {{- if .Values.postgresql.external.enabled }}
+          until nc -z {{ .Values.postgresql.external.host }} {{ .Values.postgresql.external.port }}; do
+            echo "Waiting for PostgreSQL to be ready..."
+            sleep 2
+          done
+          {{- else }}
+          until nc -z prefect-postgresql {{ .Values.postgresql.service.port }}; do
+            echo "Waiting for PostgreSQL to be ready..."
+            sleep 2
+          done
+          {{- end }}
+          echo "PostgreSQL is ready!"
+      containers:
+      - name: prefect-server
+        image: "{{ .Values.prefect.server.image.repository }}:{{ .Values.prefect.server.image.tag }}"
+        imagePullPolicy: {{ .Values.prefect.server.image.pullPolicy }}
+        command: ["prefect", "server", "start", "--host", "0.0.0.0"]
+        volumeMounts:
+        - name: prefect-data
+          mountPath: /.prefect
+        - name: tmp
+          mountPath: /tmp
+        ports:
+        - name: http
+          containerPort: {{ .Values.prefect.server.service.targetPort }}
+          protocol: TCP
+        env:
+        {{- range .Values.prefect.server.env }}
+        - name: {{ .name }}
+          {{- if .value }}
+          value: {{ .value | quote }}
+          {{- else if .valueFrom }}
+          valueFrom:
+            {{- toYaml .valueFrom | nindent 12 }}
+          {{- end }}
+        {{- end }}
+        resources:
+          {{- toYaml .Values.prefect.server.resources | nindent 10 }}
+        livenessProbe:
+          httpGet:
+            path: /api/health
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 6
+        readinessProbe:
+          httpGet:
+            path: /api/health
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+      volumes:
+      - name: prefect-data
+        emptyDir: {}
+      - name: tmp
+        emptyDir: {}

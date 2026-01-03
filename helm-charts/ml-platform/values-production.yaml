@@ -1,0 +1,156 @@
+# Production environment configuration
+global:
+  namespace: mlops
+
+# Shared PostgreSQL database
+postgresql:
+  enabled: true
+  postgresql:
+    auth:
+      postgresPassword: "CHANGE-ME-POSTGRES-PASSWORD"  # IMPORTANT: Strong password!
+      passwords:
+        prefect: "CHANGE-ME-PREFECT-PASSWORD"
+        mlflow: "CHANGE-ME-MLFLOW-PASSWORD"
+    persistence:
+      enabled: true
+      size: 50Gi
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "500m"
+      limits:
+        memory: "4Gi"
+        cpu: "2000m"
+
+# MinIO object storage
+minio:
+  enabled: true
+  minio:
+    auth:
+      rootUser: "admin"
+      rootPassword: "CHANGE-ME-MINIO-PASSWORD"  # IMPORTANT: Strong password!
+    persistence:
+      enabled: true
+      size: 100Gi
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "500m"
+      limits:
+        memory: "8Gi"
+        cpu: "4000m"
+
+# Prefect workflow orchestration
+prefect:
+  enabled: true
+  
+  server:
+    replicas: 2  # High availability
+    env:
+      - name: PREFECT_SERVER_API_HOST
+        value: "0.0.0.0"
+      - name: PREFECT_SERVER_API_PORT
+        value: "4200"
+      - name: PREFECT_API_DATABASE_CONNECTION_URL
+        valueFrom:
+          secretKeyRef:
+            name: prefect-db-secret
+            key: connection-string
+      - name: PREFECT_API_URL
+        value: "http://prefect-server:4200/api"
+      - name: PREFECT_UI_API_URL
+        value: "https://prefect.yourdomain.com/api"  # Update with your domain
+      - name: PREFECT_SERVER_ANALYTICS_ENABLED
+        value: "false"
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "500m"
+      limits:
+        memory: "4Gi"
+        cpu: "2000m"
+  
+  worker:
+    enabled: true
+    replicas: 2  # 2 workers for parallel execution
+    
+    # PRODUCTION: Use custom image with flows baked in
+    image:
+      repository: your-registry.com/prefect-worker-with-flows  # CHANGE-ME
+      tag: "v1.0.0"  # CHANGE-ME: Use semantic versioning
+      pullPolicy: Always
+    
+    flows:
+      mountFromImage:
+        enabled: false  # Flows are already in the worker image
+    
+    workPool:
+      name: "default-pool"
+      type: "process"
+    env:
+      - name: PREFECT_API_URL
+        value: "http://prefect-server:4200/api"
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "250m"
+      limits:
+        memory: "2Gi"
+        cpu: "1000m"
+
+  # Use external shared PostgreSQL
+  postgresql:
+    enabled: false
+    external:
+      enabled: true
+      host: "postgresql"
+      port: 5432
+      database: "prefect"
+      username: "prefect"
+      password: "CHANGE-ME-PREFECT-PASSWORD"
+
+  ingress:
+    enabled: true
+    className: "nginx"  # Adjust based on your ingress controller
+    hosts:
+      - host: prefect.yourdomain.com  # Update with your domain
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: prefect-tls
+        hosts:
+          - prefect.yourdomain.com
+
+  bundledFlows:
+    enabled: false
+
+# MLflow experiment tracking
+mlflow:
+  enabled: true
+  mlflow:
+    backendStore:
+      postgres:
+        host: "postgresql"
+        port: 5432
+        database: "mlflow"
+        username: "mlflow"
+        password: "CHANGE-ME-MLFLOW-PASSWORD"
+    artifactStore:
+      s3:
+        enabled: true
+        endpointUrl: "http://minio:9000"
+        accessKeyId: "admin"
+        secretAccessKey: "CHANGE-ME-MINIO-PASSWORD"
+        bucket: "mlflow-artifacts"
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "500m"
+      limits:
+        memory: "4Gi"
+        cpu: "2000m"
+
+# JupyterLab development environment (disabled in production)
+jupyter:
+  enabled: false  # Disable in production, use separate dev cluster

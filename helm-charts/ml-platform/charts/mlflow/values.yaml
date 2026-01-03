@@ -1,0 +1,56 @@
+# MLflow Configuration
+# Experiment tracking and model registry
+
+mlflow:
+  enabled: true
+  
+  image:
+    repository: mlflow-postgres
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  
+  replicas: 1
+  
+  # Backend store (PostgreSQL connection)
+  backendStore:
+    # Format: postgresql://user:password@host:port/database
+    postgres:
+      host: "postgresql"
+      port: 5432
+      database: "mlflow"
+      username: "mlflow"
+      password: "mlflow123"  # IMPORTANT: Change in production!
+  
+  # Artifact store (MinIO/S3)
+  artifactStore:
+    s3:
+      enabled: true
+      endpointUrl: "http://minio:9000"
+      accessKeyId: "admin"
+      secretAccessKey: "minio123"  # IMPORTANT: Change in production!
+      bucket: "mlflow-artifacts"
+  
+  # Service configuration
+  service:
+    type: ClusterIP
+    port: 5000
+  
+  # Resource limits
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+
+# Service Account
+serviceAccount:
+  create: true
+  name: "mlflow-sa"
+
+# Security Context
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000

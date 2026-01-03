@@ -1,0 +1,6 @@
+apiVersion: v2
+name: postgresql
+description: Shared PostgreSQL database for ML platform components
+type: application
+version: 1.0.0
+appVersion: "16"

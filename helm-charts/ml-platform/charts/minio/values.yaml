@@ -1,0 +1,61 @@
+# MinIO Configuration
+# S3-compatible object storage for ML platform
+
+minio:
+  enabled: true
+  
+  image:
+    repository: minio/minio
+    tag: "RELEASE.2024-12-13T22-19-12Z"
+    pullPolicy: IfNotPresent
+  
+  replicas: 1
+  
+  # Authentication
+  auth:
+    rootUser: "admin"
+    rootPassword: "minio123"  # IMPORTANT: Change in production!
+  
+  # Default buckets to create
+  buckets:
+    - name: mlflow-artifacts
+      policy: none  # Private by default
+    - name: prefect-artifacts
+      policy: none
+    - name: models
+      policy: none
+    - name: datasets
+      policy: none
+  
+  # Service configuration
+  service:
+    type: ClusterIP
+    port: 9000      # API port
+    consolePort: 9001  # Web console port
+  
+  # Persistent storage
+  persistence:
+    enabled: true
+    storageClass: ""
+    size: 20Gi
+    accessMode: ReadWriteOnce
+  
+  # Resource limits
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+    limits:
+      memory: "4Gi"
+      cpu: "2000m"
+
+# Service Account
+serviceAccount:
+  create: true
+  name: "minio-sa"
+
+# Security Context
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000

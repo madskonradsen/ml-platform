@@ -1,0 +1,6 @@
+apiVersion: v2
+name: jupyter
+description: JupyterLab environment for MLOps workflows
+type: application
+version: 1.0.0
+appVersion: "latest"

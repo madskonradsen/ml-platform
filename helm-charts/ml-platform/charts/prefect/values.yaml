@@ -1,0 +1,133 @@
+# Prefect Server Configuration
+prefect:
+  # Prefect server image configuration
+  server:
+    image:
+      repository: prefecthq/prefect
+      tag: "3-python3.12"
+      pullPolicy: IfNotPresent
+    
+    replicas: 1
+    
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "2000m"
+    
+    # Service configuration
+    service:
+      type: ClusterIP
+      port: 4200
+      targetPort: 4200
+    
+    # Environment variables
+    env:
+      - name: PREFECT_SERVER_API_HOST
+        value: "0.0.0.0"
+      - name: PREFECT_SERVER_API_PORT
+        value: "4200"
+      - name: PREFECT_API_DATABASE_CONNECTION_URL
+        valueFrom:
+          secretKeyRef:
+            name: prefect-db-secret
+            key: connection-string
+      - name: PREFECT_API_URL
+        value: "http://prefect-server:4200/api"
+      - name: PREFECT_UI_API_URL
+        value: "http://localhost:4200/api"
+      - name: PREFECT_SERVER_ANALYTICS_ENABLED
+        value: "false"
+
+  # Prefect agent/worker configuration
+  worker:
+    enabled: true
+    replicas: 2
+    
+    image:
+      repository: prefecthq/prefect
+      tag: "3-python3.12"
+      pullPolicy: IfNotPresent
+    
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "250m"
+      limits:
+        memory: "1Gi"
+        cpu: "1000m"
+    
+    # Worker pool configuration
+    workPool:
+      name: "default-pool"
+      type: "process"
+    
+    # Flows mounting strategy
+    # Development: Mount flows from bundled-flows image via init container
+    # Production: Use custom worker image with flows baked in
+    flows:
+      mountFromImage:
+        enabled: false  # Default disabled, enable in values override if needed
+        image:
+          repository: bundled-flows
+          tag: "latest"
+          pullPolicy: IfNotPresent
+        sourcePath: /app/flows
+        targetPath: /opt/prefect/flows
+    
+    env:
+      - name: PREFECT_API_URL
+        value: "http://prefect-server:4200/api"
+
+# PostgreSQL Database Configuration
+# NOTE: PostgreSQL is now a separate shared chart in ml-platform
+# This section configures the connection to external PostgreSQL
+postgresql:
+  enabled: false  # Use external shared PostgreSQL
+  
+  # External PostgreSQL connection details
+  external:
+    enabled: true
+    host: "postgresql"
+    port: 5432
+    database: "prefect"
+    username: "prefect"
+    password: "prefect123"  # IMPORTANT: Must match postgresql chart values!
+
+# Ingress configuration for Prefect UI
+ingress:
+  enabled: false
+  className: "nginx"
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  hosts:
+    - host: prefect.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: prefect-tls
+      hosts:
+        - prefect.example.com
+
+# Service Account
+serviceAccount:
+  create: true
+  name: "prefect-sa"
+  annotations: {}
+
+# Security Context
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+# Pod Security Context
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+

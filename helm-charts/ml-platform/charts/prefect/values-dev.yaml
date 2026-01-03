@@ -1,0 +1,82 @@
+# Example: Development values with minimal resources
+
+prefect:
+  server:
+    replicas: 1
+    env:
+      - name: PREFECT_SERVER_API_HOST
+        value: "0.0.0.0"
+      - name: PREFECT_SERVER_API_PORT
+        value: "4200"
+      - name: PREFECT_API_DATABASE_CONNECTION_URL
+        valueFrom:
+          secretKeyRef:
+            name: prefect-db-secret
+            key: connection-string
+      - name: PREFECT_API_URL
+        value: "http://prefect-server:4200/api"
+      - name: PREFECT_UI_API_URL
+        value: "http://localhost:4200/api"
+      - name: PREFECT_SERVER_ANALYTICS_ENABLED
+        value: "false"
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "250m"
+      limits:
+        memory: "1Gi"
+        cpu: "1000m"
+  
+  worker:
+    enabled: true
+    replicas: 1
+    workPool:
+      name: "default-pool"
+      type: "process"
+    env:
+      - name: PREFECT_API_URL
+        value: "http://prefect-server:4200/api"
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "100m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+
+postgresql:
+  enabled: true
+  auth:
+    password: "dev-password-123"
+  persistence:
+    enabled: false  # Use emptyDir for development
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+ingress:
+  enabled: false  # Use port-forward for development
+
+bundledFlows:
+  enabled: true  # Run bundled ML training job
+
+jupyter:
+  enabled: true
+  token: "dev-token-123"
+  bundledFlowsImage:
+    repository: bundled-flows
+    tag: "latest"
+    pullPolicy: IfNotPresent  # Try to use local image first
+  persistence:
+    enabled: true  # Enable persistence to keep your files
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"

@@ -1,0 +1,12 @@
+# Global configuration shared across all components
+global:
+  namespace: mlops
+  storageClass: ""  # Use default storage class
+
+# Prefect orchestration platform
+prefect:
+  enabled: true
+  
+# JupyterLab interactive environment
+jupyter:
+  enabled: true

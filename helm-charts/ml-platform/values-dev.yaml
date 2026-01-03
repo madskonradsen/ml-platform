@@ -1,0 +1,163 @@
+# Development environment configuration
+global:
+  namespace: mlops
+
+# Shared PostgreSQL database
+postgresql:
+  enabled: true
+  postgresql:
+    auth:
+      postgresPassword: "dev-postgres-123"
+    databases:
+      - name: prefect
+        owner: prefect
+        password: dev-prefect-123
+      - name: mlflow
+        owner: mlflow
+        password: dev-mlflow-123
+    persistence:
+      enabled: false  # Ephemeral for dev
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "100m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+
+# MinIO object storage
+minio:
+  enabled: true
+  minio:
+    auth:
+      rootUser: "admin"
+      rootPassword: "dev-minio-123"
+    persistence:
+      enabled: false  # Ephemeral for dev
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "250m"
+      limits:
+        memory: "1Gi"
+        cpu: "500m"
+
+# Prefect workflow orchestration
+prefect:
+  enabled: true
+  
+  server:
+    replicas: 1
+    env:
+      - name: PREFECT_SERVER_API_HOST
+        value: "0.0.0.0"
+      - name: PREFECT_SERVER_API_PORT
+        value: "4200"
+      - name: PREFECT_API_DATABASE_CONNECTION_URL
+        valueFrom:
+          secretKeyRef:
+            name: prefect-db-secret
+            key: connection-string
+      - name: PREFECT_API_URL
+        value: "http://prefect-server:4200/api"
+      - name: PREFECT_UI_API_URL
+        value: "http://localhost:4200/api"
+      - name: PREFECT_SERVER_ANALYTICS_ENABLED
+        value: "false"
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "250m"
+      limits:
+        memory: "1Gi"
+        cpu: "1000m"
+  
+  worker:
+    enabled: true
+    replicas: 1
+    
+    # DEV: Flows mounting disabled - use copy-flows-to-jupyter.ps1 instead
+    flows:
+      mountFromImage:
+        enabled: false
+    
+    workPool:
+      name: "default-pool"
+      type: "process"
+    env:
+      - name: PREFECT_API_URL
+        value: "http://prefect-server:4200/api"
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "100m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+
+  # Use external shared PostgreSQL
+  postgresql:
+    enabled: false
+    external:
+      enabled: true
+      host: "postgresql"
+      port: 5432
+      database: "prefect"
+      username: "prefect"
+      password: "dev-prefect-123"
+
+  ingress:
+    enabled: false
+
+  bundledFlows:
+    enabled: true
+
+# MLflow experiment tracking
+mlflow:
+  enabled: true
+  mlflow:
+    image:
+      pullPolicy: Never  # Use local image
+    backendStore:
+      postgres:
+        host: "postgresql"
+        port: 5432
+        database: "mlflow"
+        username: "mlflow"
+        password: "dev-mlflow-123"
+    artifactStore:
+      s3:
+        enabled: true
+        endpointUrl: "http://minio:9000"
+        accessKeyId: "admin"
+        secretAccessKey: "dev-minio-123"
+        bucket: "mlflow-artifacts"
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "250m"
+      limits:
+        memory: "1Gi"
+        cpu: "500m"
+
+# JupyterLab development environment
+jupyter:
+  enabled: true
+  token: "dev-token-123"
+  
+  bundledFlowsImage:
+    enabled: false  # Disabled - use copy-flows-to-jupyter.ps1
+    repository: bundled-flows
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  
+  persistence:
+    enabled: true
+  
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"

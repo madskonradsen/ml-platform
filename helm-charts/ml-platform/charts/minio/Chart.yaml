@@ -1,0 +1,6 @@
+apiVersion: v2
+name: minio
+description: S3-compatible object storage for ML artifacts
+type: application
+version: 1.0.0
+appVersion: "RELEASE.2024-12-13T22-19-12Z"
